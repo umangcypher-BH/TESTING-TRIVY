@@ -111,7 +111,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: shyam-ks
+          username: umangcypher-BH
           password: ${{ secrets.GH_TOKEN }}  
       - name: Push Docker Image to registry
         run: |
