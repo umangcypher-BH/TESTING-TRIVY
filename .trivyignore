@@ -1,0 +1,4 @@
+# python:3.7-slim - In libexpat through 2.4.9, there is a use-after free caused by overeager destruction of a shared DTD in XML_ExternalEntityParserCreate in out-of-memory situations. - Remove after 1st Dec 2022
+CVE-2022-43680
+# jupyter Core prior to version 4.11.2 contains an arbitrary code execution vulnerability in `jupyter_core` that stems from `jupyter_core` executing untrusted files in CWD -- Remove after 1st Dec 2022
+CVE-2022-39286

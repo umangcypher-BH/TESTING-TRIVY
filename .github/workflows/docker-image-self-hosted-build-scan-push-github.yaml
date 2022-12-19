@@ -1,0 +1,124 @@
+name: docker image build 
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+      # GitHub Repo Name		
+      GHCR_REPO:
+        required: true
+        type: string	
+      # Path to the Dockerfile. (default {context}/Dockerfile)
+      docker_file_path:
+        required: true
+        type: string
+      image_tag:
+        required: true
+        type: string
+        default: "0"
+      Packages_lock:
+        type: string
+        required: true
+        description: "location of lock file Trivy will look for vulnerabilities based on lock files such as Gemfile.lock and package-lock.json"    
+      username:
+        type: string
+        required: true
+        description: "github username"
+jobs:
+  build:
+    name: Build
+    runs-on: self-hosted
+    steps:
+      - name: Event Info
+        if: github.actor != 'dependabot[bot]' && !(github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: |
+          echo "::warning  ::Code changes wont be deployed for pull requests."  
+      - name: Clear GitHub Workspace
+        run: rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Build an image from Dockerfile
+        run: |
+          docker build -t ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}  ${{ inputs.docker_file_path }}
+      - name: copy template file from  shared-workflows repo
+        run: |
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/BH-Corporate-Functions/shared-workflows.git
+      - name: copy template file from  shared-workflows repo
+        run: |
+          cp ${{ inputs.docker_file_path }}/Dockerfile ./shared-workflows/configs  
+#      - name: Download html tempelate from  trivy
+#        run: |
+#          wget https://github.com/BH-Corporate-Functions/shared-workflows/blob/master/html.tpl
+#      - name: downloading  vulnerabilitydatabase
+#        run: |
+#          trivy image --download-db-only  
+#      - name: Install Trivy CLI
+#        run: |
+#          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.31.3
+ 
+      - name: downloading  vulnerability  database
+        run: |
+          /usr/local/bin/trivy image --download-db-only  
+     
+      - name: Run Trivy  scan for Image
+        run: |
+          /usr/local/bin/trivy image  --format template --template "@./shared-workflows/html.tpl" -o Report.html ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
+      
+      - name: Run Trivy scan for filesystem (Trivy will look for vulnerabilities based on lock files such as Gemfile.lock and package-lock.json)
+        run: |
+          /usr/local/bin/trivy fs --format template --template "@./shared-workflows/html.tpl" -o Report2.html ${inputs.Packages_lock}
+      
+      - name: Run Trivy scan for dockerfile 
+        run: |
+          /usr/local/bin/trivy conf --policy ./shared-workflows/policies --format template --template "@./shared-workflows/html.tpl" -o Report3.html  --namespaces user ./shared-workflows/configs
+        
+      - name: check for files
+        run: |
+          cat Report3.html >> Report.html
+      
+      - name: my-artifact
+        uses: actions/upload-artifact@v3
+        with:
+          path: "Report.html"  
+      #  Send Trivy report from self-hosted runner
+ #     - name: Send Report in mail
+ #       uses: dawidd6/action-send-mail@v3
+ #       with:
+ #         server_address: smtphosthou.bakerhughes.com
+ #         server_port: 25
+ #         secure: none
+ #         username: ${{secrets.Trivy_MAIL_USERNAME}}
+ #         password: ${{secrets.Trivy_MAIL_PASSWORD}}
+ #         subject: Trivy Scan Report Github Actions job result
+ #         to: 'anil.kumar3@bakerhughes.com'
+ #         cc: 'anil.kumar3@bakerhughes.com'
+ #         from: svc-checkmarx <svc-checkmarx@bakerhughes.com>
+ #         body: "Build job of ${{github.repository}} completed successfully!"
+ #         ignore_cert: true
+ #         convert_markdown: true
+ #         reply_to: svc-checkmarx@bakerhughes.com
+ #         in_reply_to: svc-checkmarx@bakerhughes.com
+ #         attachments: ./Report.html
+      - name: check for Crtical & High vulnerabilities in Docker Image
+        run: |
+          /usr/local/bin/trivy image --no-progress --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
+          
+      - name: Check for filesystem vuln (Trivy will look for vulnerabilities based on lock files such as Gemfile.lock and package-lock.json)
+        run: |
+          /usr/local/bin/trivy fs --exit-code 1 --severity CRITICAL,HIGH --ignorefile "/shared-workflows/.trivyignore"  ${inputs.Packages_lock}     
+      
+      - name: check for Misconfig in Dockerfile 
+        run: |
+          /usr/local/bin/trivy conf --exit-code 1 --severity CRITICAL,HIGH --policy ./shared-workflows/policies  --namespaces user ./shared-workflows/configs
+      - name: Docker Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: shyam-ks
+          password: ${{ secrets.GH_TOKEN }}  
+      - name: Push Docker Image to registry
+        run: |
+          docker image push ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
