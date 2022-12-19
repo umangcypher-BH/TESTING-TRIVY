@@ -45,10 +45,10 @@ jobs:
           docker build -t ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}  ${{ inputs.docker_file_path }}
       - name: copy template file from  shared-workflows repo
         run: |
-          git clone https://${{ secrets.GH_TOKEN }}@github.com/BH-Corporate-Functions/shared-workflows.git
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/umangcypher-BH/TESTING-TRIVY.git
       - name: copy the docker file to template directory
         run: |
-          cp ${{ inputs.docker_file_path }}/Dockerfile ./shared-workflows/configs   
+          cp ${{ inputs.docker_file_path }}/Dockerfile ./TESTING-TRIVY/configs   
       - name: Install Trivy CLI
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.31.3
@@ -59,15 +59,15 @@ jobs:
      
       - name: Run Trivy  scan for Docker Image and generate html report
         run: |
-          /usr/local/bin/trivy image  --format template --template "@./shared-workflows/html.tpl" --ignorefile "./shared-workflows/.trivyignore" -o Report.html ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
+          /usr/local/bin/trivy image  --format template --template "@./TESTING-TRIVY/html.tpl" --ignorefile "./TESTING-TRIVY/.trivyignore" -o Report.html ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
       
       - name: Run Trivy scan for filesystem and generate html report(Trivy will look for vulnerabilities based on lock files such as Gemfile.lock and package-lock.json)
         run: |
-          /usr/local/bin/trivy fs --format template --template "@./shared-workflows/html.tpl" --ignorefile "./shared-workflows/.trivyignore" -o Report2.html ${{ inputs.Packages_lock }}
+          /usr/local/bin/trivy fs --format template --template "@./TESTING-TRIVY/html.tpl" --ignorefile "./TESTING-TRIVY/.trivyignore" -o Report2.html ${{ inputs.Packages_lock }}
       
       - name: Run Trivy scan for dockerfile 
         run: |
-          /usr/local/bin/trivy conf --policy ./shared-workflows/policies --format template --template "@./shared-workflows/html.tpl" -o Report3.html  --namespaces user ./shared-workflows/configs
+          /usr/local/bin/trivy conf --policy ./TESTING-TRIVY/policies --format template --template "@./TESTING-TRIVY/html.tpl" -o Report3.html  --namespaces user ./TESTING-TRIVY/configs
         
       - name: Append all reports to Report.html
         run: |
@@ -98,15 +98,15 @@ jobs:
 
       - name: check for Crtical & High vulnerabilities in Docker Image
         run: |
-          /usr/local/bin/trivy image --no-progress --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed --ignorefile "./shared-workflows/.trivyignore" ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
+          /usr/local/bin/trivy image --no-progress --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed --ignorefile "./TESTING-TRIVY/.trivyignore" ${{ inputs.GHCR_REPO }}${{ inputs.image_name }}:${{ inputs.image_tag }}
      
       - name: Check for filesystem (Trivy will look for vulnerabilities based on lock files such as Gemfile.lock and package-lock.json)
         run: |
-          /usr/local/bin/trivy fs --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed --ignorefile "./shared-workflows/.trivyignore"  ${{ inputs.Packages_lock }}      
+          /usr/local/bin/trivy fs --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed --ignorefile "./TESTING-TRIVY/.trivyignore"  ${{ inputs.Packages_lock }}      
 
       - name: check for Misconfig in Dockerfile (Optional)
         run: |
-          /usr/local/bin/trivy conf --exit-code 1 --severity CRITICAL --policy ./shared-workflows/policies  --namespaces user ./shared-workflows/configs
+          /usr/local/bin/trivy conf --exit-code 1 --severity CRITICAL --policy ./TESTING-TRIVY/policies  --namespaces user ./TESTING-TRIVY/configs
       - name: Docker Login
         uses: docker/login-action@v2
         with:
